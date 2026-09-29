@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 
 const PUBLIC = path.join(__dirname, 'public');
 const MAESTRO = path.join(__dirname, 'maestro');
@@ -27,11 +29,39 @@ const TIPOS = {
 const estado = {
   abierto: true, zoom: 1, objetivo: 0, seq: 0, modo: 'libre', velocidad: 1, lluvia: 0,
   historia: false, escena: 0, paso: 0, puerta: 0, saludo: 0, hablar: false, abjurar: 0, final: 0,
+  obraPaso: -1,
 };
 const ULTIMA_ESCENA = 6;
 const telefonos = new Set();
 const vistas = new Set();
 const maestros = new Set();
+const controles = new Set();
+
+/* ---------- La obra avanza con clics, desde la PC o desde el control del teléfono ---------- */
+
+// Clave del control remoto: cambia en cada arranque y solo la ve el panel del maestro.
+const CLAVE = crypto.randomBytes(4).toString('hex');
+let OBRA = [], estadoDe = () => ({});
+import(pathToFileURL(path.join(PUBLIC, 'obra.js')).href)
+  .then((m) => { OBRA = m.OBRA; estadoDe = m.estadoDe; })
+  .catch((e) => console.error('No se pudo leer obra.js:', e.message));
+let obraDesde = 0, pasoDesde = 0;
+
+function irPaso(i) {
+  if (!Number.isInteger(i) || i < -1 || i >= OBRA.length) return;
+  const ahora = Date.now();
+  if (i < 0) { estado.obraPaso = -1; obraDesde = pasoDesde = 0; return; }
+  if (estado.obraPaso < 0) obraDesde = ahora;
+  estado.obraPaso = i;
+  pasoDesde = ahora;
+  aplicarControl(estadoDe(i));
+}
+
+// Cronómetro en milisegundos al momento de enviar; cada página sigue contando desde ahí.
+function reloj() {
+  const ahora = Date.now();
+  return estado.obraPaso < 0 ? { obra: 0, paso: 0 } : { obra: ahora - obraDesde, paso: ahora - pasoDesde };
+}
 
 function enviar(conjunto, datos) {
   const s = `data: ${JSON.stringify(datos)}\n\n`;
@@ -47,10 +77,11 @@ process.on('unhandledRejection', (e) => console.error('Promesa atrapada:', e));
 function difundir() {
   enviar(telefonos, { estado });
   enviar(vistas, { estado });
-  enviar(maestros, { estado, conectados: telefonos.size });
+  enviar(maestros, { estado, conectados: telefonos.size, reloj: reloj(), clave: CLAVE });
+  enviar(controles, { estado, reloj: reloj(), pasos: OBRA.length });
 }
 setInterval(() => {
-  for (const c of [telefonos, vistas, maestros]) {
+  for (const c of [telefonos, vistas, maestros, controles]) {
     for (const r of c) {
       try { r.write(': ping\n\n'); } catch { c.delete(r); }
     }
@@ -76,6 +107,7 @@ function aplicarControl(c) {
   if (c.abjurar === true) estado.abjurar++;
   if (c.final === true) estado.final++;
   if (typeof c.hablar === 'boolean') estado.hablar = c.hablar;
+  if (Number.isInteger(c.obra)) irPaso(c.obra);
 }
 
 /* ---------- HTTP ---------- */
@@ -111,7 +143,11 @@ function atender(req, res) {
 
   if (ruta === '/api/eventos') {
     const rol = url.searchParams.get('rol');
-    const conjunto = rol === 'maestro' && esLocal(req) ? maestros : rol === 'pc' ? vistas : telefonos;
+    if (rol === 'control' && url.searchParams.get('clave') !== CLAVE) {
+      res.writeHead(403);
+      return res.end();
+    }
+    const conjunto = rol === 'maestro' && esLocal(req) ? maestros : rol === 'pc' ? vistas : rol === 'control' ? controles : telefonos;
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     res.write('retry: 2000\n\n');
     conjunto.add(res);
@@ -138,6 +174,30 @@ function atender(req, res) {
         if (valida) enviar(vistas, { mirada: { id: m.id, q: m.q } });
       } catch {}
       res.writeHead(204);
+      res.end();
+    });
+    return;
+  }
+
+  // El control remoto del teléfono solo mueve la obra, y solo con la clave del panel.
+  if (ruta === '/api/remoto') {
+    if (req.method !== 'POST') {
+      res.writeHead(405);
+      return res.end();
+    }
+    let cuerpo = '';
+    req.on('data', (d) => { cuerpo += d; if (cuerpo.length > 500) req.destroy(); });
+    req.on('end', () => {
+      let ok = false;
+      try {
+        const m = JSON.parse(cuerpo);
+        ok = m.clave === CLAVE;
+        if (ok && m.accion === 'siguiente') irPaso(estado.obraPaso + 1);
+        if (ok && m.accion === 'anterior' && estado.obraPaso > 0) irPaso(estado.obraPaso - 1);
+        if (ok && m.accion === 'reiniciar') irPaso(-1);
+        if (ok) difundir();
+      } catch {}
+      res.writeHead(ok ? 204 : 403);
       res.end();
     });
     return;

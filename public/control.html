@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b0c14">
+<title>Control de la obra</title>
+<style>
+  :root { --fondo: #0b0c14; --papel: #13151f; --tinta: #efe6d2; --tenue: #9d937c; --laton: #e2b45c; --laton-claro: #f6dc9c; --borde: #2a2616; --ok: #7fd89a; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: var(--fondo); color: var(--tinta); font-family: Georgia, "Times New Roman", serif;
+    display: flex; flex-direction: column; gap: 12px; padding: 16px; user-select: none; -webkit-user-select: none;
+  }
+  .relojes { display: flex; justify-content: space-between; align-items: baseline; }
+  .relojes div { display: grid; }
+  .relojes small { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--tenue); }
+  .relojes b { font-weight: normal; font-size: 40px; color: var(--laton-claro); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .relojes div:last-child { text-align: right; }
+  .relojes div:last-child b { font-size: 28px; color: var(--tinta); }
+  .relojes b.pasado { color: #e08a74; }
+  .barra { height: 6px; border-radius: 99px; background: rgba(255,255,255,.06); overflow: hidden; }
+  .barra i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #9a6c26, #f6dc9c); }
+  .paso { flex: 1; min-height: 0; overflow: auto; background: var(--papel); border: 1px solid var(--borde); border-radius: 14px; padding: 14px 16px; }
+  .paso h1 { font-weight: normal; font-size: 22px; line-height: 1.25; }
+  .paso h1 span { color: var(--laton); margin-right: 8px; }
+  .acot { color: var(--tenue); font-style: italic; font-size: 15px; margin-top: 8px; line-height: 1.4; }
+  .linea { margin-top: 10px; }
+  .linea small { display: block; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--laton); }
+  .linea.aprendiz small { color: #9cc7e8; }
+  .linea.roma small { color: #e08a74; }
+  .linea p { font-size: 18px; line-height: 1.4; }
+  .linea.nota p { color: var(--tenue); font-style: italic; font-size: 15px; }
+  .sigue { color: var(--tenue); font-size: 14px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--borde); }
+  button { font: inherit; color: inherit; border: 1px solid var(--borde); border-radius: 16px; background: rgba(255,255,255,.04); touch-action: manipulation; }
+  button:active { transform: scale(.98); }
+  #siguiente { height: 30vh; min-height: 150px; font-size: 32px; background: linear-gradient(#e8c170, #9a6c26); color: #1d1305; border-color: var(--laton-claro); }
+  #siguiente:disabled { opacity: .35; }
+  .abajo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .abajo button { padding: 14px 8px; font-size: 16px; }
+  .aviso { margin: auto; text-align: center; color: var(--tenue); font-size: 18px; line-height: 1.5; max-width: 320px; }
+  .punto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #c0513c; margin-right: 6px; }
+  .punto.on { background: var(--ok); }
+  .estado { font-size: 13px; color: var(--tenue); text-align: center; }
+</style>
+</head>
+<body>
+<div class="aviso" id="sin-clave" hidden>Escanea el código del control en el panel del maestro, en la PC.</div>
+
+<div class="relojes" id="relojes">
+  <div><small>La obra</small><b id="t-obra">0:00</b></div>
+  <div><small id="t-paso-etq">Este paso</small><b id="t-paso">0:00</b></div>
+</div>
+<div class="barra"><i id="prog"></i></div>
+
+<section class="paso" id="paso"></section>
+
+<button id="siguiente">Empezar</button>
+<div class="abajo">
+  <button id="anterior">Anterior</button>
+  <button id="reiniciar">Volver al inicio</button>
+</div>
+<p class="estado"><span class="punto" id="enlace"></span><span id="enlace-txt">Conectando</span></p>
+
+<script type="module">
+  import { OBRA, ROLES } from '/obra.js';
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const fmt = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+  // La clave llega en el código QR del panel y se guarda para poder recargar la página.
+  let clave = location.hash.slice(1);
+  try {
+    if (clave) localStorage.setItem('galileo-clave', clave);
+    else clave = localStorage.getItem('galileo-clave') || '';
+  } catch {}
+  if (location.hash) history.replaceState(null, '', location.pathname);
+
+  let paso = -1, reloj = { obra: 0, paso: 0 }, recibido = performance.now();
+
+  function pintar() {
+    const p = OBRA[Math.max(0, paso)];
+    const sig = OBRA[paso + 1];
+    $('#paso').innerHTML = paso < 0
+      ? `<h1>Todo listo</h1><p class="acot">Toca Empezar cuando la sala esté a oscuras. Primero viene ${esc(OBRA[0].titulo)}.</p>`
+      : `<h1><span>${paso + 1}/${OBRA.length}</span>${esc(p.titulo)}</h1>` +
+        (p.acotacion ? `<p class="acot">${esc(p.acotacion)}</p>` : '') +
+        p.lineas.map(([rol, t]) => `<div class="linea ${rol}">${rol === 'nota' ? '' : `<small>${ROLES[rol]}</small>`}<p>${esc(t)}</p></div>`).join('') +
+        `<p class="sigue">${sig ? `Después viene ${esc(sig.titulo)}.` : 'Es el último paso.'}</p>`;
+    $('#siguiente').textContent = paso < 0 ? 'Empezar' : sig ? 'Siguiente' : 'Fin';
+    $('#siguiente').disabled = paso >= 0 && !sig;
+    $('#anterior').disabled = paso <= 0;
+    $('#t-paso-etq').textContent = paso < 0 ? 'Este paso' : `Este paso, ${p.seg} s`;
+  }
+
+  // El cronómetro solo mide; la obra avanza únicamente cuando se toca Siguiente.
+  function contar() {
+    const d = paso < 0 ? 0 : performance.now() - recibido;
+    const obra = reloj.obra + d, enPaso = reloj.paso + d;
+    $('#t-obra').textContent = fmt(obra);
+    $('#t-paso').textContent = fmt(enPaso);
+    $('#t-paso').classList.toggle('pasado', paso >= 0 && enPaso > OBRA[paso].seg * 1000);
+    const total = OBRA.reduce((s, p) => s + p.seg, 0) * 1000;
+    $('#prog').style.width = `${Math.min(100, (obra / total) * 100)}%`;
+    requestAnimationFrame(contar);
+  }
+
+  async function mandar(accion) {
+    if (navigator.vibrate) navigator.vibrate(30);
+    try {
+      const r = await fetch('/api/remoto', { method: 'POST', body: JSON.stringify({ clave, accion }) });
+      if (r.status === 403) sinClave();
+    } catch {}
+  }
+  $('#siguiente').addEventListener('click', () => mandar('siguiente'));
+  $('#anterior').addEventListener('click', () => mandar('anterior'));
+  let confirmar = 0;
+  $('#reiniciar').addEventListener('click', () => {
+    // Dos toques seguidos, para no reiniciar la obra por accidente.
+    if (performance.now() - confirmar < 2500) { mandar('reiniciar'); confirmar = 0; $('#reiniciar').textContent = 'Volver al inicio'; return; }
+    confirmar = performance.now();
+    $('#reiniciar').textContent = 'Toca otra vez';
+    setTimeout(() => { $('#reiniciar').textContent = 'Volver al inicio'; }, 2500);
+  });
+
+  function sinClave() {
+    document.querySelectorAll('body > :not(#sin-clave):not(script)').forEach((el) => { el.hidden = true; el.style.display = 'none'; });
+    $('#sin-clave').hidden = false;
+  }
+
+  let fuente = null;
+  function conectar() {
+    if (fuente) return;
+    fuente = new EventSource('/api/eventos?rol=control&clave=' + encodeURIComponent(clave));
+    fuente.onopen = () => { $('#enlace').classList.add('on'); $('#enlace-txt').textContent = 'Conectado'; };
+    fuente.onerror = () => {
+      $('#enlace').classList.remove('on');
+      $('#enlace-txt').textContent = 'Sin conexión, reintentando';
+      // Si el servidor rechaza la clave (se reinició y cambió), hay que volver a escanear.
+      if (fuente.readyState === EventSource.CLOSED) {
+        fuente = null;
+        fetch('/api/remoto', { method: 'POST', body: JSON.stringify({ clave, accion: 'nada' }) })
+          .then((r) => { if (r.status === 403) sinClave(); else setTimeout(conectar, 2000); })
+          .catch(() => setTimeout(conectar, 2000));
+      }
+    };
+    fuente.onmessage = (m) => {
+      const d = JSON.parse(m.data);
+      if (!d.reloj) return;
+      reloj = d.reloj; recibido = performance.now();
+      if (d.estado.obraPaso !== paso) { paso = d.estado.obraPaso; pintar(); }
+    };
+  }
+
+  // La pantalla no se apaga mientras el control está abierto.
+  let wake = null;
+  const pedirWake = () => { try { navigator.wakeLock?.request('screen').then((w) => { wake = w; }).catch(() => {}); } catch {} };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { fuente?.close(); fuente = null; } else { conectar(); pedirWake(); }
+  });
+
+  if (!clave) sinClave();
+  else { pintar(); conectar(); pedirWake(); requestAnimationFrame(contar); }
+</script>
+</body>
+</html>

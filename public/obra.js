@@ -25,7 +25,7 @@ export const ANTES = [
   'Enciende todo con INICIAR.bat y espera a que el panel muestre los teléfonos conectados.',
   'Decidan antes a qué persona del público le darán el telescopio al principio. Galileo irá hasta ella.',
   'Cada teléfono se conecta a la red GALILEO, abre el cielo y entra en su telescopio.',
-  'La obra empieza con el botón Iniciar la obra o con la barra espaciadora. Avanza sola y se puede pausar si el público tarda.',
+  'Quien lleva la obra escanea el código del control en el panel y avanza cada paso desde su teléfono, como diapositivas. También se puede avanzar en la PC con la barra espaciadora. Nada avanza solo; los segundos de cada paso son solo una guía.',
 ];
 
 export const OBRA = [

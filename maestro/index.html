@@ -142,6 +142,11 @@
       <p class="dato"><b>https://192.168.137.1:9643</b></p>
       <p class="nota">Si el teléfono dice “conexión no privada”: Avanzado → Continuar.</p>
     </section>
+    <section class="tarjeta">
+      <h2>3 · Control de la obra</h2>
+      <div class="qr" id="qr-control"></div>
+      <p class="nota">Quien lleva la obra escanea este código con su teléfono, ya conectado a GALILEO. Ahí avanza cada paso como diapositivas y ve el cronómetro. El código cambia cada vez que se enciende el servidor.</p>
+    </section>
   </div>
 
   <div>
@@ -156,10 +161,9 @@
         <p class="ap-sigue" id="ap-sigue"></p>
       </div>
       <div class="acciones" style="margin:12px 0">
-        <button class="accion grande" id="a-play">▶ Iniciar la obra</button>
-        <button class="accion" id="a-saltar">⏭ Siguiente paso</button>
-        <button class="accion" id="a-detener">⏹ Detener</button>
-        <button class="accion" id="a-atras">⏮ Paso anterior</button>
+        <button class="accion grande" id="a-play" style="grid-column:1/-1">Iniciar la obra</button>
+        <button class="accion" id="a-atras">Paso anterior</button>
+        <button class="accion" id="a-detener">Volver al inicio</button>
       </div>
       <ol class="pasos" id="a-pasos"></ol>
       <p class="nota">Los actores pueden leer el guion en su teléfono, en la dirección del cielo con /guion.html al final. <a href="/guion.html" target="_blank">Abrir el guion para imprimir</a></p>
@@ -265,7 +269,7 @@
   new QRCode($('#qr-wifi'), { ...opcionesQR, text: 'WIFI:T:WPA;S:GALILEO;P:galileo1610;;' });
   new QRCode($('#qr-web'), { ...opcionesQR, text: 'https://192.168.137.1:9643' });
 
-  let estado = null, arrastrandoZoom = false, arrastrandoVel = false;
+  let estado = null, arrastrandoZoom = false, arrastrandoVel = false, claveControl = '';
 
   function enviar(datos) {
     fetch('/api/control', { method: 'POST', body: JSON.stringify(datos) }).catch(() => {});
@@ -308,12 +312,20 @@
       const d = JSON.parse(m.data);
       if (d.estado) estado = d.estado;
       if (typeof d.conectados === 'number') $('#conectados').textContent = d.conectados;
+      if (d.clave && d.clave !== claveControl) {
+        claveControl = d.clave;
+        $('#qr-control').innerHTML = '';
+        new QRCode($('#qr-control'), { ...opcionesQR, text: 'https://192.168.137.1:9643/control.html#' + d.clave });
+      }
+      if (d.reloj) { reloj = d.reloj; recibido = performance.now(); }
+      if (estado && estado.obraPaso !== auto.paso) { auto.paso = estado.obraPaso; pintarApunte(); }
       pintar();
+      pintarAuto();
     };
   }
   conectarPanel();
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && !auto.corriendo) { es?.close(); es = null; $('#enlace').classList.remove('on'); }
+    if (document.hidden && auto.paso < 0) { es?.close(); es = null; $('#enlace').classList.remove('on'); }
     else conectarPanel();
   });
 
@@ -345,7 +357,9 @@
 
   /* ---------- La obra ---------- */
   // El texto, los tiempos y las órdenes de cada paso viven en /obra.js, igual que la página del guion.
-  const auto = { corriendo: false, paso: -1, tPaso: 0, ultimo: 0 };
+  // El paso actual vive en el servidor: lo mueve este panel o el control del teléfono. Nada avanza solo.
+  const auto = { paso: -1 };
+  let reloj = { obra: 0, paso: 0 }, recibido = performance.now();
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const esc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
@@ -353,18 +367,10 @@
   document.querySelectorAll('#a-pasos li').forEach((li) => li.addEventListener('click', () => irPaso(Number(li.dataset.i))));
 
   function irPaso(i) {
-    if (i >= OBRA.length) { detenerAuto(); return; }
-    auto.paso = Math.max(0, i); auto.tPaso = 0;
-    enviar(estadoDe(auto.paso));
-    if (!auto.corriendo) { auto.corriendo = true; auto.ultimo = performance.now(); }
-    pintarApunte();
-    pintarAuto();
+    if (i >= OBRA.length) return;
+    enviar({ obra: Math.max(-1, i) });
   }
-  function detenerAuto() {
-    auto.corriendo = false; auto.paso = -1; auto.tPaso = 0;
-    pintarApunte();
-    pintarAuto();
-  }
+
   // Lo que se dice y se hace en el paso actual, para seguir a los actores desde la PC.
   function pintarApunte() {
     const i = Math.max(0, auto.paso);
@@ -381,33 +387,24 @@
     $('#ap-sigue').textContent = auto.paso < 0 ? 'Todo listo. La obra empieza aquí.' : s ? `Después viene ${s.titulo}.` : 'Es el último paso.';
   }
   function pintarAuto() {
-    $('#panel-auto').classList.toggle('corriendo', auto.corriendo);
-    $('#a-play').textContent = auto.corriendo ? '⏸ Pausar' : auto.paso >= 0 ? '▶ Continuar' : '▶ Iniciar la obra';
-    const hecho = auto.paso < 0 ? 0 : INICIO[auto.paso] + auto.tPaso;
+    const d = auto.paso < 0 ? 0 : performance.now() - recibido;
+    const hecho = (reloj.obra + d) / 1000, enPaso = (reloj.paso + d) / 1000;
+    $('#panel-auto').classList.toggle('corriendo', auto.paso >= 0);
+    $('#a-play').textContent = auto.paso < 0 ? 'Iniciar la obra' : auto.paso < OBRA.length - 1 ? 'Siguiente paso' : 'Es el último paso';
     $('#a-reloj').textContent = `${fmt(hecho)} / ${fmt(DURACION)}`;
-    $('#a-prog').style.width = `${(hecho / DURACION) * 100}%`;
-    $('#ap-resta').textContent = auto.paso < 0 ? `${OBRA[0].seg} s` : `quedan ${Math.max(0, Math.ceil(OBRA[auto.paso].seg - auto.tPaso))} s`;
+    $('#a-prog').style.width = `${Math.min(100, (hecho / DURACION) * 100)}%`;
+    const resta = auto.paso < 0 ? OBRA[0].seg : OBRA[auto.paso].seg - enPaso;
+    $('#ap-resta').textContent = auto.paso < 0 ? `${OBRA[0].seg} s` : resta >= 0 ? `faltan ${Math.ceil(resta)} s` : `${Math.floor(-resta)} s de más`;
     document.querySelectorAll('#a-pasos li').forEach((li, i) => {
       li.classList.toggle('actual', i === auto.paso);
       li.classList.toggle('hecho', auto.paso >= 0 && i < auto.paso);
     });
   }
-  setInterval(() => {
-    const ahora = performance.now();
-    if (auto.corriendo && auto.paso >= 0) {
-      auto.tPaso += (ahora - auto.ultimo) / 1000;
-      if (auto.tPaso >= OBRA[auto.paso].seg) irPaso(auto.paso + 1);
-      pintarAuto();
-    }
-    auto.ultimo = ahora;
-  }, 200);
-  $('#a-play').addEventListener('click', () => {
-    if (auto.corriendo) { auto.corriendo = false; pintarAuto(); return; }
-    if (auto.paso < 0) irPaso(0); else { auto.corriendo = true; auto.ultimo = performance.now(); pintarAuto(); }
-  });
-  $('#a-saltar').addEventListener('click', () => irPaso(auto.paso + 1));
-  $('#a-atras').addEventListener('click', () => irPaso(Math.max(0, auto.paso - 1)));
-  $('#a-detener').addEventListener('click', detenerAuto);
+  // Solo el cronómetro corre; el paso cambia con un clic.
+  setInterval(pintarAuto, 250);
+  $('#a-play').addEventListener('click', () => irPaso(auto.paso + 1));
+  $('#a-atras').addEventListener('click', () => { if (auto.paso > 0) irPaso(auto.paso - 1); });
+  $('#a-detener').addEventListener('click', () => irPaso(-1));
   pintarApunte();
   pintarAuto();
 
@@ -463,7 +460,7 @@
       if (k === 'h') { enviar({ historia: false }); return; }
     } else if (e.key.toLowerCase() === 'h') { enviar({ historia: true, escena: 0 }); return; }
     else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'n') { irPaso(auto.paso + 1); return; }
-    else if (e.key === 'ArrowLeft') { irPaso(Math.max(0, auto.paso - 1)); return; }
+    else if (e.key === 'ArrowLeft') { if (auto.paso > 0) irPaso(auto.paso - 1); return; }
     if (e.key >= '1' && e.key <= '5') objetivo(Number(e.key) - 1);
     else if (e.key === 'ArrowUp') { e.preventDefault(); zoomA(estado.zoom / 1.35); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); zoomA(estado.zoom * 1.35); }
