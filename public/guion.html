@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guion de Galileo</title>
+<style>
+  :root { --fondo: #0b0c14; --papel: #13151f; --tinta: #efe6d2; --tenue: #9d937c; --laton: #e2b45c; --borde: #2a2616; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--fondo); color: var(--tinta); font-family: Georgia, "Times New Roman", serif; line-height: 1.5; padding: 32px 16px 64px; }
+  main { max-width: 760px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 36px; }
+  header small { display: block; font-size: 12px; letter-spacing: .25em; text-transform: uppercase; color: var(--laton); }
+  h1 { font-weight: normal; font-size: 34px; margin: 6px 0; }
+  header p { color: var(--tenue); }
+  h2 { font-weight: normal; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--laton); margin: 28px 0 10px; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  .reparto li b { font-weight: normal; color: var(--laton); }
+  .paso { background: var(--papel); border: 1px solid var(--borde); border-radius: 12px; padding: 16px 18px; margin-top: 14px; break-inside: avoid; }
+  .paso-cab { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .paso-cab b { font-weight: normal; color: var(--laton); }
+  .paso-cab span { margin-left: auto; color: var(--tenue); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .acot { color: var(--tenue); font-style: italic; margin-bottom: 8px; }
+  .linea { margin: 8px 0; }
+  .linea small { display: block; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--laton); }
+  .linea.aprendiz small { color: #9cc7e8; }
+  .linea.roma small { color: #e08a74; }
+  .linea p { font-size: 19px; }
+  .pc { color: #7fd89a; font-size: 15px; margin-top: 8px; }
+  .imprimir { display: block; margin: 0 auto 28px; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--laton); background: transparent; color: var(--tinta); font: inherit; cursor: pointer; }
+  @media print {
+    body { background: #fff; color: #000; padding: 0; }
+    .paso { background: #fff; border-color: #bbb; }
+    header small, h2, .paso-cab b, .linea small, .linea.aprendiz small, .linea.roma small { color: #000; }
+    .acot, header p, .paso-cab span { color: #444; }
+    .pc { color: #245c36; }
+    .imprimir { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <small>El Mensajero Sideral</small>
+    <h1>Galileo y su telescopio</h1>
+    <p id="duracion"></p>
+  </header>
+  <button class="imprimir" onclick="print()">Imprimir el guion</button>
+
+  <h2>Reparto</h2>
+  <ul class="reparto" id="reparto"></ul>
+
+  <h2>Utilería</h2>
+  <ul id="utileria"></ul>
+
+  <h2>Antes de empezar</h2>
+  <ul id="antes"></ul>
+
+  <div id="pasos"></div>
+</main>
+
+<script type="module">
+  import { OBRA, ROLES, REPARTO, UTILERIA, ANTES, DURACION, INICIO, minSeg } from './obra.js';
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  $('#duracion').textContent = `Obra corta en primera persona para un actor y dos ayudantes. Dura ${minSeg(DURACION)}.`;
+  $('#reparto').innerHTML = REPARTO.map(([n, t]) => `<li><b>${esc(n)}</b>. ${esc(t)}</li>`).join('');
+  $('#utileria').innerHTML = UTILERIA.map((t) => `<li>${esc(t)}</li>`).join('');
+  $('#antes').innerHTML = ANTES.map((t) => `<li>${esc(t)}</li>`).join('');
+  const parte = (p, i) => i === 0 && p.prologo ? '<h2>Prólogo, el viaje dentro del telescopio</h2>'
+    : !p.prologo && (i === 0 || OBRA[i - 1].prologo) ? '<h2>Galileo en persona</h2>' : '';
+  $('#pasos').innerHTML = OBRA.map((p, i) => `${parte(p, i)}
+    <section class="paso">
+      <div class="paso-cab"><b>${i + 1}</b>${esc(p.titulo)}<span>desde ${minSeg(INICIO[i])}</span></div>
+      ${p.acotacion ? `<p class="acot">${esc(p.acotacion)}</p>` : ''}
+      ${p.lineas.map(([rol, t]) => rol === 'nota'
+        ? `<p class="acot">${esc(t)}</p>`
+        : `<div class="linea ${rol}"><small>${ROLES[rol]}</small><p>${esc(t)}</p></div>`).join('')}
+      ${p.pc ? `<p class="pc">En la PC. ${esc(p.pc)}</p>` : ''}
+    </section>`).join('');
+</script>
+</body>
+</html>

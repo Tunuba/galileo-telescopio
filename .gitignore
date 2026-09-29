@@ -1,0 +1,7 @@
+# Se generan al arrancar
+cert/
+*.pid
+registro.txt
+__pycache__/
+# Librerias de Python copiadas para generar.py (pip install numpy manifold3d)
+impresion3d/.lib/

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Galileo">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icono-192.png">
+<title>El Mensajero Sideral</title>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<section id="inicio">
+  <div id="abrir" aria-hidden="true">
+    <svg viewBox="0 0 64 64">
+      <g transform="rotate(-28 32 30)">
+        <rect x="9" y="24" width="42" height="10" rx="2" fill="#2a1606"/>
+        <rect x="16" y="23" width="3" height="12" fill="#f6dc9c"/>
+        <rect x="32" y="23" width="3" height="12" fill="#f6dc9c"/>
+        <rect x="50" y="21" width="6" height="16" rx="1.5" fill="#2a1606"/>
+        <rect x="5" y="26" width="5" height="6" rx="1" fill="#2a1606"/>
+      </g>
+      <path d="M32 36 L22 58 M32 36 L42 58 M32 36 L32 58" stroke="#2a1606" stroke-width="3" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+</section>
+
+<section id="vista">
+  <canvas id="cielo"></canvas>
+  <div id="vineta"></div>
+  <div id="velo"></div>
+  <div id="toca" aria-hidden="true">
+    <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="6"/><circle class="onda" cx="24" cy="24" r="14"/></svg>
+  </div>
+</section>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

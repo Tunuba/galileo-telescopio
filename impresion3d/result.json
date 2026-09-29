@@ -1,0 +1,64 @@
+{
+    "error_string": "Success.",
+    "export_time": 8242,
+    "layer_height": 0.20000000298023224,
+    "plate_index": 0,
+    "prepare_time": 84,
+    "return_code": 0,
+    "sliced_plates": [
+        {
+            "feature_type_times": {
+                "Bottom surface": 1148.57568359375,
+                "Bridge": 2067.022705078125,
+                "Custom": 3.376570463180542,
+                "Inner wall": 16677.552734375,
+                "Internal solid infill": 4791.14501953125,
+                "Outer wall": 17537.40625,
+                "Overhang wall": 66.6427993774414,
+                "Skirt": 30.486968994140625,
+                "Sparse infill": 14558.173828125,
+                "Top surface": 917.8817749023438,
+                "Travel": 6694.400390625,
+                "Undefined": 6691.978515625
+            },
+            "filament_change_times": 0,
+            "filaments": [
+                {
+                    "filament_id": "",
+                    "id": 1,
+                    "main_used_g": 0.0,
+                    "total_used_g": 0.0
+                }
+            ],
+            "generate_support_material_time": 2444,
+            "id": 1,
+            "infill_time": 7111,
+            "layer_filament_change": 0,
+            "main_predication": 64525.546875,
+            "make_perimeters_time": 19219,
+            "obj_cached_cnt": 0,
+            "objects": [
+                {
+                    "bbox": {
+                        "depth": 208.5,
+                        "height": 120.0,
+                        "width": 304.9129943847656,
+                        "x": 12.543493270874023,
+                        "y": 55.75,
+                        "z": 0.0
+                    },
+                    "id": 5,
+                    "name": "Telescopio_Galileo_3_piezas_juntas.stl",
+                    "triangle_count": 20684
+                }
+            ],
+            "sliced_time": 47654,
+            "sliced_time_with_cache": 18268,
+            "total_predication": 64526.5,
+            "triangle_count": 20684,
+            "warning_message": "It seems object Telescopio_Galileo_3_piezas_juntas.stl has floating regions. Please re-orient the object or enable support generation."
+        }
+    ],
+    "sparse_infill_density": 20.0,
+    "wall_loops": 2
+}

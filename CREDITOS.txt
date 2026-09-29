@@ -1,0 +1,4 @@
+Texturas de planetas, Luna y Vía Láctea: Solar System Scope (https://www.solarsystemscope.com/textures/)
+Basadas en datos de la NASA. Licencia Creative Commons Atribución 4.0 Internacional (CC BY 4.0).
+
+Motor 3D: three.js (licencia MIT).
