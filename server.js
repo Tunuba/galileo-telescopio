@@ -122,6 +122,27 @@ function atender(req, res) {
     return;
   }
 
+  // Cada teléfono avisa hacia dónde mira; la vista previa de la PC lo repite.
+  if (ruta === '/api/mirada') {
+    if (req.method !== 'POST') {
+      res.writeHead(405);
+      return res.end();
+    }
+    let cuerpo = '';
+    req.on('data', (d) => { cuerpo += d; if (cuerpo.length > 500) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const m = JSON.parse(cuerpo);
+        const valida = typeof m.id === 'string' && m.id.length <= 20 && Array.isArray(m.q) && m.q.length === 4 &&
+          m.q.every((v) => typeof v === 'number' && isFinite(v));
+        if (valida) enviar(vistas, { mirada: { id: m.id, q: m.q } });
+      } catch {}
+      res.writeHead(204);
+      res.end();
+    });
+    return;
+  }
+
   if (ruta === '/api/control') {
     if (!esLocal(req) || req.method !== 'POST') {
       res.writeHead(403);

@@ -32,7 +32,7 @@ export const OBRA = [
   {
     titulo: 'El telescopio pasa al público',
     seg: 8,
-    ordenes: { historia: false, abierto: false, modo: 'guiado', objetivo: 0, zoom: 1, velocidad: 1 },
+    ordenes: { historia: false, abierto: false, modo: 'libre', objetivo: 0, zoom: 1, velocidad: 1 },
     prologo: true,
     acotacion: 'Sala a oscuras. El aprendiz entra con el telescopio y se lo da a una persona del público.',
     lineas: [
@@ -233,7 +233,7 @@ export const OBRA = [
     ordenes: { modo: 'libre' },
     acotacion: 'Galileo, el aprendiz y la Voz de Roma saludan al público.',
     lineas: [],
-    pc: 'Los telescopios quedan libres para que el público mire a su gusto.',
+    pc: 'Los telescopios siguen libres para que el público mire a su gusto.',
   },
 ];
 

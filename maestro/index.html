@@ -244,6 +244,7 @@
       <button class="accion" id="btn-previa" style="width:100%;margin-bottom:12px">Encender vista previa</button>
       <p class="nota" id="nota-previa">Apagada para no cargar la PC. Enciéndela solo para revisar.</p>
       <div class="telefono"><iframe id="previa" title="Vista previa"></iframe></div>
+      <button class="accion" id="btn-otro" style="width:100%;margin-top:12px;display:none">Ver otro teléfono</button>
       <p class="atajos"><kbd>1</kbd>–<kbd>5</kbd> objetivo · <kbd>↑</kbd><kbd>↓</kbd> zoom · <kbd>L</kbd> lluvia · <kbd>G</kbd> modo · <kbd>T</kbd> telón<br>
         Obra <kbd>Espacio</kbd> iniciar o pausar · <kbd>→</kbd> siguiente paso · <kbd>←</kbd> paso anterior<br>
         Historia: <kbd>H</kbd> empezar/salir · <kbd>1</kbd>–<kbd>7</kbd> escena · <kbd>→</kbd> siguiente · <kbd>W</kbd><kbd>S</kbd> caminar · <kbd>P</kbd> puerta · <kbd>O</kbd> saludo · <kbd>B</kbd> habla · <kbd>J</kbd> abjura · <kbd>F</kbd> final</p>
@@ -415,8 +416,17 @@
     const encendida = !!f.getAttribute('src');
     if (encendida) f.removeAttribute('src'); else f.setAttribute('src', '/?pc=1');
     $('#btn-previa').textContent = encendida ? 'Encender vista previa' : 'Apagar vista previa';
-    $('#nota-previa').textContent = encendida ? 'Apagada para no cargar la PC. Enciéndela solo para revisar.' : 'Encendida en calidad baja.';
+    $('#nota-previa').textContent = encendida ? 'Apagada para no cargar la PC. Enciéndela solo para revisar.' : 'Esperando que un teléfono abra su telescopio.';
+    $('#btn-otro').style.display = 'none';
   });
+  // La vista previa avisa a qué teléfono sigue; así se ve en la PC lo mismo que ve la persona.
+  addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data?.previa || !$('#previa').getAttribute('src')) return;
+    const { total, n } = e.data.previa;
+    $('#nota-previa').textContent = total ? `Muestra lo que ve el teléfono ${n}${total > 1 ? ' de ' + total : ''}.` : 'Esperando que un teléfono abra su telescopio.';
+    $('#btn-otro').style.display = total > 1 ? '' : 'none';
+  });
+  $('#btn-otro').addEventListener('click', () => $('#previa').contentWindow?.postMessage({ otroTelefono: true }, location.origin));
 
   let arrastrandoPaso = false;
   const escena = (i) => enviar({ historia: true, escena: Math.max(0, Math.min(6, i)) });

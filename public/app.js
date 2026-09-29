@@ -647,6 +647,7 @@ function conectar() {
     try {
       const d = JSON.parse(m.data);
       if (d.estado) aplicarEstado(d.estado);
+      if (d.mirada) recibirMirada(d.mirada);
     } catch {}
   };
 }
@@ -687,6 +688,67 @@ function orientacionGuiada(t, suave, inmediato) {
   else camera.quaternion.slerp(qDeseado, suave(10));
 }
 
+/* ---------- Lo que ve el teléfono, en la vista previa de la PC ---------- */
+
+// El teléfono manda su mirada sin el giro de su propio mundo, porque cada teléfono gira el cielo a su manera.
+const Y = new THREE.Vector3(0, 1, 0);
+const qGiro = new THREE.Quaternion(), qRel = new THREE.Quaternion(), qRemota = new THREE.Quaternion();
+const giroMundo = () => (enHistoria ? historia.raiz.rotation.y : cielo.rotation.y);
+let idTelefono = '';
+try { idTelefono = sessionStorage.getItem('galileo-id') || ''; } catch {}
+if (!idTelefono) {
+  idTelefono = Math.random().toString(36).slice(2, 10);
+  try { sessionStorage.setItem('galileo-id', idTelefono); } catch {}
+}
+let ultimoEnvio = 0, enviando = false;
+function avisarMirada(ahora) {
+  if (params.has('pc') || params.has('auto') || guiar() || enviando || ahora - ultimoEnvio < 150) return;
+  ultimoEnvio = ahora;
+  qRel.setFromAxisAngle(Y, -giroMundo()).multiply(camera.quaternion);
+  enviando = true;
+  fetch('/api/mirada', { method: 'POST', body: JSON.stringify({ id: idTelefono, q: qRel.toArray().map((v) => +v.toFixed(4)) }) })
+    .catch(() => {})
+    .finally(() => { enviando = false; });
+}
+
+// La PC sigue a un teléfono. Si ese deja de avisar, pasa al que siga mirando; el panel puede cambiarlo.
+const miradas = new Map();
+let seguido = null;
+function recibirMirada(m) {
+  miradas.set(m.id, { q: m.q, t: performance.now() });
+  if (!seguido || !miradas.has(seguido)) seguido = m.id;
+  avisarPanel();
+}
+function limpiarMiradas() {
+  const ahora = performance.now();
+  for (const [id, m] of miradas) if (ahora - m.t > 4000) miradas.delete(id);
+  if (seguido && !miradas.has(seguido)) { seguido = miradas.keys().next().value || null; avisarPanel(); }
+}
+let ultimoAviso = '';
+function avisarPanel() {
+  const ids = [...miradas.keys()];
+  const txt = JSON.stringify({ previa: { total: ids.length, n: ids.indexOf(seguido) + 1 } });
+  if (txt === ultimoAviso || parent === window) return;
+  ultimoAviso = txt;
+  parent.postMessage(JSON.parse(txt), location.origin);
+}
+addEventListener('message', (e) => {
+  if (e.origin !== location.origin || e.data?.otroTelefono !== true) return;
+  const ids = [...miradas.keys()];
+  if (ids.length > 1) { seguido = ids[(ids.indexOf(seguido) + 1) % ids.length]; avisarPanel(); }
+});
+// Devuelve true si la cámara quedó mirando como el teléfono seguido.
+function mirarComoTelefono(suave) {
+  if (!params.has('pc')) return false;
+  limpiarMiradas();
+  const m = seguido && miradas.get(seguido);
+  if (!m) return false;
+  qRemota.fromArray(m.q);
+  qGiro.setFromAxisAngle(Y, giroMundo()).multiply(qRemota);
+  camera.quaternion.slerp(qGiro, suave(8));
+  return true;
+}
+
 function cuadro(ahora) {
   if (!abierto && ahora > finCierre) return;
   requestAnimationFrame(cuadro);
@@ -702,7 +764,9 @@ function cuadro(ahora) {
   if (enHistoria) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
-    if (guiar()) {
+    if (mirarComoTelefono(suave)) {
+      // La vista previa repite lo que ve el teléfono.
+    } else if (guiar()) {
       eulCam.set(historia.mirada() + mirarY, historia.raiz.rotation.y + giroPrueba + mirarX, 0);
       qDeseado.setFromEuler(eulCam);
       camera.quaternion.slerp(qDeseado, suave(4));
@@ -715,13 +779,16 @@ function cuadro(ahora) {
     camera.fov = Math.min(125, (camera.aspect < 1 ? 72 : 55) * zoom * historia.fovExtra());
     camera.updateProjectionMatrix();
     historia.actualizar(dt, t, camera, guiar());
+    avisarMirada(ahora);
     renderer.render(historia.escena, camera);
     desenfoqueInicial(t);
     return;
   }
   renderer.toneMapping = THREE.NoToneMapping;
 
-  if (guiar()) {
+  if (mirarComoTelefono(suave)) {
+    // La vista previa repite lo que ve el teléfono.
+  } else if (guiar()) {
     orientacionGuiada(t, suave, false);
   } else {
     leerSensor();
@@ -761,6 +828,7 @@ function cuadro(ahora) {
   estrellasMat.uniforms.uTime.value = t;
 
   actualizarFugaces(dt, t);
+  avisarMirada(ahora);
   renderer.render(scene, camera);
   desenfoqueInicial(t);
 }
